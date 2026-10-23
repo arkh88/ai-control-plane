@@ -22,3 +22,26 @@ Python, FastAPI, Open Policy Agent, PostgreSQL, pytest, Docker Compose.
 ## First Release Goal
 
 Demonstrate an allowed AI request, a denied AI request, and verifiable governance evidence linked to the applied security policy.
+
+## Local Development
+
+Create and activate a Python virtual environment,
+then install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Start the development server:
+
+```bash
+uvicorn app.main:app --reload --host 127.0.0.1
+```
+
+Endpoints:
+
+- GET /health/live — application liveness
+- GET /docs — interactive OpenAPI documentation
+
+The service currently has no authentication
+or model inference capabilities.
