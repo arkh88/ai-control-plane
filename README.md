@@ -85,7 +85,7 @@ Run the API:
 docker run --rm \
   --name ai-control-plane-day6 \
   -p 127.0.0.1:8000:8000 \
-  ai-control-plane:day6
+  ai-control-plane:test
 ```
 
 Test the health endpoint:
@@ -102,3 +102,28 @@ The container runs as a non-root user.
 
 The API is bound to localhost on the host machine.
 Do not expose this development configuration publicly.
+
+## Development Quality Checks
+
+Run the application:
+
+    docker compose up --build -d
+
+Check the application:
+
+    curl http://127.0.0.1:8000/health/live
+
+Stop the application:
+
+    docker compose down
+
+Run linting and formatting checks:
+
+    ruff check app tests
+    ruff format --check app tests
+
+Run automated tests:
+
+    python -m pytest -v
+
+CI checks are defined in .github/workflows/ci.yml.

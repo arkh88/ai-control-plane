@@ -1,13 +1,9 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-
 app = FastAPI(
     title="AI Control Plane",
-    description=(
-        "Open-source AI governance and "
-        "runtime security platform."
-    ),
+    description=("Open-source AI governance and runtime security platform."),
     version="0.1.0",
 )
 

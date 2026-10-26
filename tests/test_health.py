@@ -2,7 +2,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-
 client = TestClient(app)
 
 
@@ -28,9 +27,7 @@ def test_health_endpoint_returns_json():
     """The response must be JSON."""
     response = client.get("/health/live")
 
-    assert response.headers["content-type"] == (
-        "application/json"
-    )
+    assert response.headers["content-type"] == ("application/json")
 
 
 def test_unknown_endpoint_returns_404():
@@ -38,6 +35,4 @@ def test_unknown_endpoint_returns_404():
     response = client.get("/does-not-exist")
 
     assert response.status_code == 404
-    assert response.json() == {
-        "detail": "Not Found"
-    }
+    assert response.json() == {"detail": "Not Found"}
