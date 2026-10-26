@@ -70,3 +70,35 @@ Future tests will cover:
 - Fail-closed policy enforcement
 - Model routing
 - Governance evidence integrity
+
+## Docker Development
+
+Build the application image:
+
+```bash
+docker build -t ai-control-plane:day6 .
+```
+
+Run the API:
+
+```bash
+docker run --rm \
+  --name ai-control-plane-day6 \
+  -p 127.0.0.1:8000:8000 \
+  ai-control-plane:day6
+```
+
+Test the health endpoint:
+
+```bash
+curl http://127.0.0.1:8000/health/live
+```
+
+Interactive API documentation:
+
+http://127.0.0.1:8000/docs
+
+The container runs as a non-root user.
+
+The API is bound to localhost on the host machine.
+Do not expose this development configuration publicly.
