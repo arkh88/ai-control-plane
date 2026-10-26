@@ -12,7 +12,7 @@ output:
 # AI Control Plane — System Architecture
 
 > **Project:** AI Control Plane  
-> **Document:** Day 3 architecture and trust-boundary specification  
+> **Document:** Architecture and trust-boundary specification  
 > **Version:** 0.1 (proposed design)  
 > **Status:** Draft — not yet implemented  
 > **Primary stack:** Python, FastAPI, Open Policy Agent (OPA), PostgreSQL, Docker Compose  
