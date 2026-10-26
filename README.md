@@ -45,3 +45,28 @@ Endpoints:
 
 The service currently has no authentication
 or model inference capabilities.
+
+## Automated Testing
+
+The project uses pytest and FastAPI TestClient.
+
+Install dependencies:
+
+    python -m pip install -r requirements.txt
+
+Run all tests:
+
+    python -m pytest -v
+
+Current tests cover:
+- API liveness response
+- Health response schema
+- JSON content type
+- Unknown endpoint handling
+
+Future tests will cover:
+- Application authentication
+- OPA authorization
+- Fail-closed policy enforcement
+- Model routing
+- Governance evidence integrity
