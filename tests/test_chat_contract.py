@@ -28,9 +28,7 @@ def test_valid_request_reaches_placeholder():
     )
 
     assert response.status_code == 501
-    assert response.json()["detail"] == (
-        "AI inference is not implemented yet."
-    )
+    assert response.json()["detail"] == ("AI inference is not implemented yet.")
 
 
 def test_missing_model_is_rejected():
