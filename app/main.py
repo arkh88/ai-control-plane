@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+from app.schemas import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+)
 
 app = FastAPI(
     title="AI Control Plane",
@@ -25,4 +30,20 @@ async def health_live() -> HealthResponse:
         status="ok",
         service="ai-control-plane",
         version=app.version,
+    )
+
+
+@app.post(
+    "/v1/chat/completions",
+    response_model=ChatCompletionResponse,
+    tags=["AI Inference"],
+    responses={501: {"description": "Model inference is not yet implemented."}},
+)
+async def create_chat_completion(
+    request: ChatCompletionRequest,
+) -> ChatCompletionResponse:
+    """Validate an AI request. Inference arrives on Day 9."""
+    raise HTTPException(
+        status_code=501,
+        detail="AI inference is not implemented yet.",
     )
