@@ -127,3 +127,58 @@ Run automated tests:
     python -m pytest -v
 
 CI checks are defined in .github/workflows/ci.yml.
+
+## Chat Completions API
+
+Endpoint: POST /v1/chat/completions
+
+MVP v0.1 contract:
+- Text-only messages
+- Non-streaming requests
+- Required registered-model identifier
+- Strict Pydantic input validation
+- OpenAI-compatible response schema subset
+
+Current behavior:
+- Valid requests return HTTP 501 until Day 9
+- Invalid requests return HTTP 422
+
+Authentication, policy enforcement, and model routing
+are not implemented yet.
+
+Do not expose this development endpoint publicly.
+
+## Mock AI Provider
+
+The project includes a deterministic mock inference provider.
+
+Location: `app/mock_provider.py`
+
+The mock provider:
+- Accepts text-only chat completion requests.
+- Reuses the gateway's Pydantic request schema.
+- Returns predictable assistant responses.
+- Requires no GPU or external AI API.
+- Does not echo prompt content.
+- Runs as a separate Docker Compose service.
+
+Its completion identifiers and timestamps are fixed
+test fixtures, not production audit identifiers.
+
+Start services:
+
+    docker compose up --build -d
+
+Check containers:
+
+    docker compose ps
+
+Stop services:
+
+    docker compose down
+
+The mock provider listens on port 8001 inside
+the Compose network but is not published to the host.
+
+The gateway-to-provider connection will be
+implemented on Day 10.
