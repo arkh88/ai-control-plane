@@ -20,14 +20,32 @@ def valid_request() -> dict:
     }
 
 
-def test_valid_request_reaches_placeholder():
+def test_valid_request_reaches_mock_provider(
+    use_mock_provider,
+):
+    from app.main import app
+    from app.provider_client import get_provider_client
+
+    # Verify the test fixture installed the override.
+    assert get_provider_client in app.dependency_overrides, (
+        "Mock provider dependency override is missing"
+    )
+
     response = client.post(
         "/v1/chat/completions",
         json=valid_request(),
     )
 
-    assert response.status_code == 501
-    assert response.json()["detail"] == ("AI inference is not implemented yet.")
+    print("Status:", response.status_code)
+    print("Response:", response.json())
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["object"] == "chat.completion"
+    assert data["model"] == "local-small"
+    assert data["choices"][0]["message"]["role"] == "assistant"
+    assert "deterministic mock response" in (data["choices"][0]["message"]["content"])
 
 
 def test_missing_model_is_rejected():
