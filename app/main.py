@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, ValidationError
 
 from app.auth import ApplicationIdentity, require_application
+from app.model_registry import authorize_model_access
 from app.provider_client import get_provider_client
 from app.schemas import (
     ChatCompletionRequest,
@@ -62,7 +63,19 @@ async def create_chat_completion(
     ],
 ) -> ChatCompletionResponse:
     """Forward a validated request to the configured mock provider."""
+    # Authenticate first (handled by FastAPI dependency).
+    # Then enforce the model allowlist before inference.
+    registration = authorize_model_access(
+        application_id=identity.application_id,
+        model_id=request.model,
+    )
 
+    # For v0.1, only the configured mock provider is supported.
+    if registration.provider_id != "mock-provider":
+        raise HTTPException(
+            status_code=503,
+            detail="Model route unavailable.",
+        )
     try:
         response = await client.post(
             "/v1/chat/completions",
