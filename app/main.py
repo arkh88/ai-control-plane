@@ -6,7 +6,12 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, ValidationError
 
 from app.auth import ApplicationIdentity, require_application
-from app.model_registry import authorize_model_access
+from app.model_registry import MODEL_REGISTRY
+from app.policy_client import (
+    PolicyClientError,
+    evaluate_model_access,
+    get_policy_client,
+)
 from app.provider_client import get_provider_client
 from app.schemas import (
     ChatCompletionRequest,
@@ -61,21 +66,52 @@ async def create_chat_completion(
         httpx.AsyncClient,
         Depends(get_provider_client),
     ],
+    policy_client: Annotated[
+        httpx.AsyncClient,
+        Depends(get_policy_client),
+    ],
 ) -> ChatCompletionResponse:
     """Forward a validated request to the configured mock provider."""
     # Authenticate first (handled by FastAPI dependency).
     # Then enforce the model allowlist before inference.
-    registration = authorize_model_access(
-        application_id=identity.application_id,
-        model_id=request.model,
-    )
-
-    # For v0.1, only the configured mock provider is supported.
-    if registration.provider_id != "mock-provider":
+    # 1. Request a decision from OPA using trusted identity.
+    try:
+        decision = await evaluate_model_access(
+            client=policy_client,
+            application_id=identity.application_id,
+            model_id=request.model,
+        )
+    except PolicyClientError as exc:
+        # No fallback to the old Python allowlist.
         raise HTTPException(
             status_code=503,
-            detail="Model route unavailable.",
+            detail="Policy evaluation unavailable.",
+        ) from exc
+
+    # 2. An explicit denial blocks inference.
+    if not decision.allow:
+        if decision.reason == "MODEL_NOT_REGISTERED":
+            raise HTTPException(
+                status_code=404,
+                detail="Model not found.",
+            )
+
+        raise HTTPException(
+            status_code=403,
+            detail="Application is not authorized for this model.",
         )
+
+    # 3. Even OPA approval cannot create an arbitrary route.
+    registration = MODEL_REGISTRY.get(request.model)
+
+    if registration is None or registration.provider_id != "mock-provider":
+        raise HTTPException(
+            status_code=503,
+            detail="Approved model route unavailable.",
+        )
+
+    # 4. Your existing provider HTTPX try/except block
+    # follows here, unchanged.
     try:
         response = await client.post(
             "/v1/chat/completions",
