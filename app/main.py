@@ -1,12 +1,14 @@
 import logging
 from typing import Annotated
+from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
 from app.auth import ApplicationIdentity, require_application
 from app.model_registry import MODEL_REGISTRY
+from app.policy_audit import log_policy_event
 from app.policy_client import (
     PolicyClientError,
     evaluate_model_access,
@@ -25,6 +27,19 @@ app = FastAPI(
     description=("Open-source AI governance and runtime security platform."),
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Generate one trusted correlation ID per HTTP request."""
+
+    request_id = str(uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+
+    return response
 
 
 class HealthResponse(BaseModel):
@@ -58,6 +73,7 @@ async def health_live() -> HealthResponse:
 )
 async def create_chat_completion(
     request: ChatCompletionRequest,
+    http_request: Request,
     identity: Annotated[
         ApplicationIdentity,
         Depends(require_application),
@@ -71,25 +87,42 @@ async def create_chat_completion(
         Depends(get_policy_client),
     ],
 ) -> ChatCompletionResponse:
-    """Forward a validated request to the configured mock provider."""
-    # Authenticate first (handled by FastAPI dependency).
-    # Then enforce the model allowlist before inference.
-    # 1. Request a decision from OPA using trusted identity.
+    """Authenticate, authorize, log, and forward inference."""
+
+    request_id = http_request.state.request_id
+
+    # Step 1: Evaluate authorization with OPA.
     try:
         decision = await evaluate_model_access(
             client=policy_client,
             application_id=identity.application_id,
             model_id=request.model,
         )
+
     except PolicyClientError as exc:
-        # No fallback to the old Python allowlist.
+        log_policy_event(
+            request_id=request_id,
+            application_id=identity.application_id,
+            model_id=request.model,
+            outcome="error",
+            reason="POLICY_EVALUATION_ERROR",
+        )
+
         raise HTTPException(
             status_code=503,
             detail="Policy evaluation unavailable.",
         ) from exc
 
-    # 2. An explicit denial blocks inference.
+    # Step 2: Reject explicit OPA denials.
     if not decision.allow:
+        log_policy_event(
+            request_id=request_id,
+            application_id=identity.application_id,
+            model_id=request.model,
+            outcome="deny",
+            reason=decision.reason,
+        )
+
         if decision.reason == "MODEL_NOT_REGISTERED":
             raise HTTPException(
                 status_code=404,
@@ -101,25 +134,41 @@ async def create_chat_completion(
             detail="Application is not authorized for this model.",
         )
 
-    # 3. Even OPA approval cannot create an arbitrary route.
+    # Step 3: Verify the approved provider route.
     registration = MODEL_REGISTRY.get(request.model)
 
     if registration is None or registration.provider_id != "mock-provider":
+        log_policy_event(
+            request_id=request_id,
+            application_id=identity.application_id,
+            model_id=request.model,
+            outcome="error",
+            reason="ROUTE_UNAVAILABLE",
+        )
+
         raise HTTPException(
             status_code=503,
             detail="Approved model route unavailable.",
         )
 
-    # 4. Your existing provider HTTPX try/except block
-    # follows here, unchanged.
+    # Step 4: Log the successful authorization.
+    log_policy_event(
+        request_id=request_id,
+        application_id=identity.application_id,
+        model_id=request.model,
+        outcome="allow",
+        reason=decision.reason,
+    )
+
+    # Step 5: Forward to the approved model provider.
     try:
         response = await client.post(
             "/v1/chat/completions",
             json=request.model_dump(),
         )
+
         response.raise_for_status()
 
-        # Validate the upstream response before returning it.
         return ChatCompletionResponse.model_validate(response.json())
 
     except httpx.TimeoutException as exc:
@@ -129,7 +178,6 @@ async def create_chat_completion(
         ) from exc
 
     except httpx.HTTPError as exc:
-        logger.exception("Provider HTTP request failed")
         raise HTTPException(
             status_code=502,
             detail="Model provider unavailable.",
