@@ -14,6 +14,7 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       MOCK_PROVIDER_URL: "http://mock-provider:8001"
+      OPA_URL: "http://opa:8181"
       AICP_API_KEY_SHA256: "${AICP_API_KEY_SHA256:?Set AICP_API_KEY_SHA256}"
       AICP_APP_ID: "${AICP_APP_ID:-demo-app}"
 
@@ -63,3 +64,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  opa:
+    image: openpolicyagent/opa:1.21.4
+
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+
+    expose:
+      - "8181"
+
+    read_only: true
+
+    cap_drop:
+      - ALL
+
+    security_opt:
+      - no-new-privileges:true
+
+    restart: unless-stopped   
