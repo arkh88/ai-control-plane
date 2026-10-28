@@ -5,6 +5,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, ValidationError
 
+from app.auth import ApplicationIdentity, require_application
 from app.provider_client import get_provider_client
 from app.schemas import (
     ChatCompletionRequest,
@@ -51,6 +52,10 @@ async def health_live() -> HealthResponse:
 )
 async def create_chat_completion(
     request: ChatCompletionRequest,
+    identity: Annotated[
+        ApplicationIdentity,
+        Depends(require_application),
+    ],
     client: Annotated[
         httpx.AsyncClient,
         Depends(get_provider_client),

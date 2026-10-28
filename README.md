@@ -182,3 +182,35 @@ the Compose network but is not published to the host.
 
 The gateway-to-provider connection will be
 implemented on Day 10.
+
+## Application Authentication
+
+The inference gateway requires an application API key.
+
+Authentication uses:
+
+- Authorization: Bearer <api-key>
+- SHA-256 digest comparison
+- Constant-time digest verification
+- Trusted application identity
+- Fail-closed behavior when configuration is missing
+
+Environment variables:
+
+- AICP_API_KEY_SHA256: SHA-256 digest of the API key
+- AICP_APP_ID: trusted application identifier
+
+The API key must be randomly generated with high entropy.
+
+Missing or invalid credentials return HTTP 401.
+Invalid authentication configuration returns HTTP 503.
+
+The model provider is never called for unauthenticated
+requests.
+
+This initial version supports one configured application.
+Multiple application identities, credential revocation,
+authorization policies, and audit evidence are future work.
+
+The API must remain restricted to local development.
+Production deployment requires TLS and additional controls.

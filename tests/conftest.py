@@ -1,8 +1,9 @@
-"""Shared pytest fixtures."""
+"""Shared test fixtures for the AI Control Plane."""
 
 import httpx
 import pytest
 
+from app.auth import ApplicationIdentity, require_application
 from app.main import app as gateway_app
 from app.mock_provider import app as mock_app
 from app.provider_client import get_provider_client
@@ -10,7 +11,7 @@ from app.provider_client import get_provider_client
 
 @pytest.fixture(autouse=True)
 def use_mock_provider():
-    """Route gateway requests to mock provider in memory."""
+    """Provide an in-memory model and test identity."""
 
     async def override_provider_client():
         transport = httpx.ASGITransport(app=mock_app)
@@ -22,16 +23,15 @@ def use_mock_provider():
         ) as client:
             yield client
 
-    # Save the original override if one exists.
-    original = gateway_app.dependency_overrides.get(get_provider_client)
+    def override_application():
+        return ApplicationIdentity(application_id="test-app")
 
-    # Replace real networking with in-memory transport.
+    original = gateway_app.dependency_overrides.copy()
+
     gateway_app.dependency_overrides[get_provider_client] = override_provider_client
+    gateway_app.dependency_overrides[require_application] = override_application
 
     yield
 
-    # Restore the previous dependency configuration.
-    if original is None:
-        gateway_app.dependency_overrides.pop(get_provider_client, None)
-    else:
-        gateway_app.dependency_overrides[get_provider_client] = original
+    gateway_app.dependency_overrides.clear()
+    gateway_app.dependency_overrides.update(original)

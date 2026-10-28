@@ -13,6 +13,9 @@ services:
 
     environment:
       PYTHONUNBUFFERED: "1"
+      MOCK_PROVIDER_URL: "http://mock-provider:8001"
+      AICP_API_KEY_SHA256: "${AICP_API_KEY_SHA256:?Set AICP_API_KEY_SHA256}"
+      AICP_APP_ID: "${AICP_APP_ID:-demo-app}"
 
     security_opt:
       - no-new-privileges:true
