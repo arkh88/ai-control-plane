@@ -34,3 +34,12 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+      
+        
+      - name: Test OPA policies
+        run: |
+          docker run --rm \
+            -v "$PWD/policies:/policies:ro" \
+            -v "$PWD/policy_tests:/policy_tests:ro" \
+            openpolicyagent/opa:1.21.4 \
+            test --fail-on-empty -v /policies /policy_tests
