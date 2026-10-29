@@ -80,9 +80,7 @@ def test_postgres_migration_applies(postgres_engine):
     }
 
     with postgres_engine.connect() as connection:
-        revision = connection.scalar(
-            text("SELECT version_num FROM alembic_version")
-        )
+        revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
     assert revision == HEAD
 
