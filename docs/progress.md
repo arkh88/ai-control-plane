@@ -1,17 +1,18 @@
 **Last updated:** 2026-10-29
-**Current checkpoint:** Day 27 complete; Day 28 next.
+**Current checkpoint:** Day 28 complete; Day 29 next.
 
 | Metric | Value |
 | --- | --- |
-| Development sessions completed | 27 / 60 |
-| Remaining sessions | 33 |
-| Standard Python tests | 127 passing |
-| PostgreSQL integration tests | 5 passing |
+| Development sessions completed | 28 / 60 |
+| Remaining sessions | 32 |
+| Standard Python tests | 135 passing |
+| PostgreSQL integration tests | 6 passing |
 | Rego tests | 12 passing |
-| PostgreSQL migration head | 0003_policy_control_mappings |
+| PostgreSQL migration head | 0004_governance_decisions |
 | Schema drift | No differences detected |
-| SQLite evidence | Still active, commit-before-inference |
-| Next task | Day 28: Decisions table and repository operations |
+| Active evidence store | SQLite |
+| PostgreSQL decision repository | Implemented and independently tested |
+| Next task | Day 29: Controlled evidence persistence cutover |
 
 ## Completed milestones
 

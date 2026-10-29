@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -172,3 +173,65 @@ class PolicyControlMapping(Base):
 
     policy: Mapped[GovernancePolicyVersion] = relationship(back_populates="mappings")
     control: Mapped[GovernanceControl] = relationship(back_populates="mappings")
+
+
+class GovernanceDecision(Base):
+    """Durable authorization decision evidence."""
+
+    __tablename__ = "decisions"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            name="uq_decisions_request_id",
+        ),
+        CheckConstraint(
+            "outcome IN ('allow', 'deny', 'error')",
+            name="ck_decisions_outcome",
+        ),
+        Index(
+            "ix_decisions_occurred_at",
+            "occurred_at",
+        ),
+    )
+
+    evidence_id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+    )
+    request_id: Mapped[str] = mapped_column(
+        String(36),
+        nullable=False,
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    application_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+    model_id: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+    )
+    outcome: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+    )
+    reason: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    policy_ref: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+    policy_version: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    control_ids: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+    )

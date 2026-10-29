@@ -10,7 +10,7 @@ from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "0001_governance_baseline"
-HEAD = "0003_policy_control_mappings"
+HEAD = "0004_governance_decisions"
 
 
 def migration_config(connection=None):
@@ -23,12 +23,23 @@ def migration_config(connection=None):
 
 
 def test_baseline_is_current_migration_head():
-    """Test 1: the initial revision exists."""
+    """Verify the Day 28 migration chain."""
 
     scripts = ScriptDirectory.from_config(migration_config())
 
+    # The latest migration must be Day 28's revision.
     assert scripts.get_current_head() == HEAD
-    assert scripts.get_revision(HEAD).down_revision == "0002_core_governance_tables"
+
+    # Migration 0004 must come after 0003.
+    assert scripts.get_revision(HEAD).down_revision == "0003_policy_control_mappings"
+
+    # Migration 0003 must come after 0002.
+    assert (
+        scripts.get_revision("0003_policy_control_mappings").down_revision
+        == "0002_core_governance_tables"
+    )
+
+    # Migration 0002 must come after 0001.
     assert scripts.get_revision("0002_core_governance_tables").down_revision == BASELINE
 
 
@@ -53,6 +64,7 @@ def test_fresh_database_can_upgrade(tmp_path):
             "controls",
             "policy_versions",
             "policy_control_mappings",
+            "decisions",
         }
 
         with engine.connect() as connection:

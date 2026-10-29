@@ -2,14 +2,17 @@
 
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import func, insert, inspect, select, text
+from sqlalchemy import delete, func, insert, inspect, select, text
 
 from alembic import command
+from app.decision_repository import PostgresDecisionRepository
+from app.evidence import EvidenceRecord
 from app.governance_db import (
     create_governance_engine,
     database_url_from_env,
@@ -19,6 +22,7 @@ from app.governance_models import (
     Application,
     Base,
     GovernanceControl,
+    GovernanceDecision,
     GovernancePolicyVersion,
     Model,
     PolicyControlMapping,
@@ -34,7 +38,7 @@ if os.getenv("AICP_POSTGRES_TESTS") != "1":
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HEAD = "0003_policy_control_mappings"
+HEAD = "0004_policy_control_mappings"
 
 
 @pytest.fixture(scope="module")
@@ -77,6 +81,7 @@ def test_postgres_migration_applies(postgres_engine):
         "controls",
         "policy_versions",
         "policy_control_mappings",
+        "decisions",
     }
 
     with postgres_engine.connect() as connection:
@@ -209,3 +214,42 @@ def test_postgres_policy_control_mapping_round_trip(
         finally:
             # No catalog test data remains in PostgreSQL.
             transaction.rollback()
+
+
+def test_postgres_decision_commit_and_readback(
+    postgres_engine,
+):
+    """Test 6: a decision is committed and visible in PostgreSQL."""
+
+    repository = PostgresDecisionRepository(postgres_engine)
+
+    record = EvidenceRecord(
+        request_id=str(uuid4()),
+        application_id="test-app",
+        model_id="unknown-model",
+        outcome="deny",
+        reason="MODEL_NOT_REGISTERED",
+        policy_version="model-access/v1",
+    )
+
+    try:
+        repository.write(record)
+
+        # This lookup opens a separate database connection.
+        saved = repository.get_by_request_id(record.request_id)
+
+        assert saved is not None
+        assert saved.evidence_id == record.evidence_id
+        assert saved.request_id == record.request_id
+        assert saved.outcome == "deny"
+        assert saved.reason == "MODEL_NOT_REGISTERED"
+        assert "AICP-RT-001" in saved.control_ids
+
+    finally:
+        # The dedicated CI database retains no test decision.
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                delete(GovernanceDecision).where(
+                    GovernanceDecision.request_id == record.request_id
+                )
+            )
