@@ -27,10 +27,10 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Check formatting
-        run: ruff format --check app tests
+        run: ruff format --check app tests alembic
 
       - name: Run linting
-        run: ruff check app tests
+        run: ruff check app tests alembi
 
       - name: Run tests
         run: python -m pytest -v
