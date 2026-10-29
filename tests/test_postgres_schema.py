@@ -74,10 +74,15 @@ def test_postgres_migration_applies(postgres_engine):
         "applications",
         "api_credentials",
         "models",
+        "controls",
+        "policy_versions",
+        "policy_control_mappings",
     }
 
     with postgres_engine.connect() as connection:
-        revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+        revision = connection.scalar(
+            text("SELECT version_num FROM alembic_version")
+        )
 
     assert revision == HEAD
 
