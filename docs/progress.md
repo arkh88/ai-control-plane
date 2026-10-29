@@ -1,27 +1,17 @@
-# Project Progress — AI Governance & Security Control Plane
+**Last updated:** 2026-10-29
+**Current checkpoint:** Day 26 complete; Day 27 next.
 
-**Last updated:** 2026-10-29  
-**Current checkpoint:** **Day 22 complete**; revised **Day 23 — PostgreSQL + SQLAlchemy foundation** is next.  
-**Time budget:** Maximum 2 hours per development session.  
-**Roadmap:** [`roadmap-60-days.md`](roadmap-60-days.md)  
-**Architecture:** [`architecture.md`](architecture.md)  
-**Decision log:** [`decisions.md`](decisions.md)
-
-> **Evidence status:** The completion and test counts below were reported by the developer during the preceding sessions. They have **not yet been independently rechecked against the connected GitHub repository**. Treat the repository and current CI results as authoritative once connected.
-
-## Current status
-
-| Metric | Latest reported value |
+| Metric | Value |
 | --- | --- |
-| Development sessions completed | **22 / 60** |
-| Development sessions remaining | **38** |
-| Python tests | **102 passing** |
-| Rego tests | **12 passing** |
-| Total automated tests | **114 passing** |
-| Docker Compose integration | Reported working |
-| GitHub Actions | Reported green |
-| Latest completed task | Day 22: policy versioning, governance control mapping, and SQLite schema migration |
-| Next recommended task | Revised Day 23: PostgreSQL and SQLAlchemy, **without changing the existing SQLite evidence path yet** |
+| Development sessions completed | 26 / 60 |
+| Remaining sessions | 34 |
+| Standard Python tests | 120 passing |
+| PostgreSQL integration tests | 4 passing in dedicated CI job |
+| Rego tests | 12 passing |
+| PostgreSQL migration head | 0002_core_governance_tables |
+| Schema drift | No differences detected |
+| SQLite evidence | Still active, commit-before-inference |
+| Next task | Day 27: Controls, policy versions, and mappings |
 
 ## Completed milestones
 

@@ -43,3 +43,46 @@ jobs:
             -v "$PWD/policy_tests:/policy_tests:ro" \
             openpolicyagent/opa:1.21.4 \
             test --fail-on-empty -v /policies /policy_tests
+  
+  postgres-schema:
+    name: PostgreSQL migration verification
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: aicp
+          POSTGRES_DB: aicp_ci
+          POSTGRES_PASSWORD: ci-only-disposable-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aicp -d aicp_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+
+      - name: Verify migrations and PostgreSQL schema
+        env:
+          AICP_POSTGRES_TESTS: "1"
+          AICP_GOVERNANCE_DB_HOST: "127.0.0.1"
+          AICP_GOVERNANCE_DB_USER: "aicp"
+          AICP_GOVERNANCE_DB_PASSWORD: "ci-only-disposable-password"
+          AICP_GOVERNANCE_DB_NAME: "aicp_ci"
+        run: |
+          python -m pytest -v tests/test_postgres_schema.py
+          python -m alembic check

@@ -2,13 +2,12 @@
 
 from logging.config import fileConfig
 
-from sqlalchemy import MetaData
-
 from alembic import context
 from app.governance_db import (
     create_governance_engine,
     database_url_from_env,
 )
+from app.governance_models import Base
 
 config = context.config
 
@@ -17,7 +16,7 @@ if config.config_file_name is not None:
 
 # Empty on Day 24.
 # Day 25 will provide SQLAlchemy model metadata.
-target_metadata = MetaData()
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
