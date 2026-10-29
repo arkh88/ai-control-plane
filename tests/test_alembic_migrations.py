@@ -10,6 +10,7 @@ from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "0001_governance_baseline"
+HEAD = "0002_core_governance_tables"
 
 
 def migration_config(connection=None):
@@ -26,7 +27,8 @@ def test_baseline_is_current_migration_head():
 
     scripts = ScriptDirectory.from_config(migration_config())
 
-    assert scripts.get_current_head() == BASELINE
+    assert scripts.get_current_head() == HEAD
+    assert scripts.get_revision(HEAD).down_revision == BASELINE
 
 
 def test_fresh_database_can_upgrade(tmp_path):
@@ -42,12 +44,17 @@ def test_fresh_database_can_upgrade(tmp_path):
                 "head",
             )
 
-        assert inspect(engine).get_table_names() == ["alembic_version"]
+        assert set(inspect(engine).get_table_names()) == {
+            "alembic_version",
+            "applications",
+            "api_credentials",
+            "models",
+        }
 
         with engine.connect() as connection:
             version = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
-        assert version == BASELINE
+        assert version == HEAD
 
     finally:
         engine.dispose()
@@ -83,7 +90,7 @@ def test_repeated_upgrade_preserves_existing_data(tmp_path):
             )
 
         assert saved_id == 7
-        assert revision == BASELINE
+        assert revision == HEAD
 
     finally:
         engine.dispose()
@@ -126,7 +133,7 @@ def test_disposable_database_can_downgrade_and_upgrade(
                 text("SELECT version_num FROM alembic_version")
             )
 
-        assert revision == BASELINE
+        assert revision == HEAD
 
     finally:
         engine.dispose()
