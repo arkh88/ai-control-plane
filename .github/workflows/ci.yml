@@ -30,7 +30,7 @@ jobs:
         run: ruff format --check app tests alembic
 
       - name: Run linting
-        run: ruff check app tests alembi
+        run: ruff check app tests alembic
 
       - name: Run tests
         run: python -m pytest -v
