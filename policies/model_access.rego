@@ -50,8 +50,11 @@ reason := "ALLOW" if {
     allow
 }
 
-# Stable decision contract for future gateway integration.
+# Version of the model-access policy contract.
+policy_version := "model-access/v1"
+
 decision := {
     "allow": allow,
     "reason": reason,
+    "policy_version": policy_version,
 }

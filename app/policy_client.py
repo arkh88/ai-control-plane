@@ -34,6 +34,7 @@ class PolicyDecision(BaseModel):
 
     allow: StrictBool
     reason: DecisionReason
+    policy_version: Literal["model-access/v1"] | None = None
 
     @model_validator(mode="after")
     def validate_consistency(self):

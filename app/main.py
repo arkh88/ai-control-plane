@@ -100,6 +100,7 @@ async def create_chat_completion(
     """Authenticate, authorize, log, and forward inference."""
 
     request_id = http_request.state.request_id
+    policy_version = "not_reported"
 
     def record_decision(
         outcome: PolicyOutcome,
@@ -113,6 +114,7 @@ async def create_chat_completion(
             model_id=request.model,
             outcome=outcome,
             reason=reason,
+            policy_version=policy_version,
         )
 
         try:
@@ -149,7 +151,8 @@ async def create_chat_completion(
             status_code=503,
             detail="Policy evaluation unavailable.",
         ) from exc
-
+    # Version reported by the evaluated OPA decision.
+    policy_version = decision.policy_version or "not_reported"
     # Step 2: Reject explicit OPA denials.
     if not decision.allow:
         record_decision(

@@ -14,6 +14,7 @@ test_demo_local_allowed if {
     result == {
         "allow": true,
         "reason": "ALLOW",
+        "policy_version": "model-access/v1"
     }
 }
 
@@ -27,6 +28,7 @@ test_demo_restricted_denied if {
     result == {
         "allow": false,
         "reason": "MODEL_NOT_ALLOWED",
+        "policy_version": "model-access/v1"
     }
 }
 
@@ -40,6 +42,7 @@ test_finance_restricted_allowed if {
     result == {
         "allow": true,
         "reason": "ALLOW",
+        "policy_version": "model-access/v1"
     }
 }
 
@@ -77,6 +80,7 @@ test_unknown_model_denied if {
     result == {
         "allow": false,
         "reason": "MODEL_NOT_REGISTERED",
+        "policy_version": "model-access/v1"
     }
 }
 
@@ -90,6 +94,7 @@ test_unknown_application_denied if {
     result == {
         "allow": false,
         "reason": "UNKNOWN_APPLICATION",
+        "policy_version": "model-access/v1"
     }
 }
 
@@ -109,4 +114,26 @@ test_empty_input_denied if {
 
     result.allow == false
     result.reason == "MODEL_NOT_REGISTERED"
+}
+
+# 11. Approved requests include the policy version.
+test_allowed_decision_reports_version if {
+    result := authz.decision with input as {
+        "application_id": "demo-app",
+        "model_id": "local-small",
+    }
+
+    result.allow == true
+    result.policy_version == "model-access/v1"
+}
+
+# 12. Denied requests also include the policy version.
+test_denied_decision_reports_version if {
+    result := authz.decision with input as {
+        "application_id": "demo-app",
+        "model_id": "restricted-small",
+    }
+
+    result.allow == false
+    result.policy_version == "model-access/v1"
 }
