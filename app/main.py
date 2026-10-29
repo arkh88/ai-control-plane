@@ -7,8 +7,14 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
 from app.auth import ApplicationIdentity, require_application
+from app.evidence import (
+    EvidenceRecord,
+    EvidenceStore,
+    EvidenceStoreError,
+    get_evidence_store,
+)
 from app.model_registry import MODEL_REGISTRY
-from app.policy_audit import log_policy_event
+from app.policy_audit import PolicyOutcome, log_policy_event
 from app.policy_client import (
     PolicyClientError,
     evaluate_model_access,
@@ -86,10 +92,44 @@ async def create_chat_completion(
         httpx.AsyncClient,
         Depends(get_policy_client),
     ],
+    evidence_store: Annotated[
+        EvidenceStore,
+        Depends(get_evidence_store),
+    ],
 ) -> ChatCompletionResponse:
     """Authenticate, authorize, log, and forward inference."""
 
     request_id = http_request.state.request_id
+
+    def record_decision(
+        outcome: PolicyOutcome,
+        reason: str,
+    ) -> None:
+        """Commit evidence before emitting its operational log."""
+
+        record = EvidenceRecord(
+            request_id=request_id,
+            application_id=identity.application_id,
+            model_id=request.model,
+            outcome=outcome,
+            reason=reason,
+        )
+
+        try:
+            evidence_store.write(record)
+        except EvidenceStoreError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Governance evidence unavailable.",
+            ) from exc
+
+        log_policy_event(
+            request_id=request_id,
+            application_id=identity.application_id,
+            model_id=request.model,
+            outcome=outcome,
+            reason=reason,
+        )
 
     # Step 1: Evaluate authorization with OPA.
     try:
@@ -100,12 +140,9 @@ async def create_chat_completion(
         )
 
     except PolicyClientError as exc:
-        log_policy_event(
-            request_id=request_id,
-            application_id=identity.application_id,
-            model_id=request.model,
-            outcome="error",
-            reason="POLICY_EVALUATION_ERROR",
+        record_decision(
+            "error",
+            "POLICY_EVALUATION_ERROR",
         )
 
         raise HTTPException(
@@ -115,14 +152,10 @@ async def create_chat_completion(
 
     # Step 2: Reject explicit OPA denials.
     if not decision.allow:
-        log_policy_event(
-            request_id=request_id,
-            application_id=identity.application_id,
-            model_id=request.model,
-            outcome="deny",
-            reason=decision.reason,
+        record_decision(
+            "deny",
+            decision.reason,
         )
-
         if decision.reason == "MODEL_NOT_REGISTERED":
             raise HTTPException(
                 status_code=404,
@@ -138,12 +171,9 @@ async def create_chat_completion(
     registration = MODEL_REGISTRY.get(request.model)
 
     if registration is None or registration.provider_id != "mock-provider":
-        log_policy_event(
-            request_id=request_id,
-            application_id=identity.application_id,
-            model_id=request.model,
-            outcome="error",
-            reason="ROUTE_UNAVAILABLE",
+        record_decision(
+            "error",
+            "ROUTE_UNAVAILABLE",
         )
 
         raise HTTPException(
@@ -152,12 +182,9 @@ async def create_chat_completion(
         )
 
     # Step 4: Log the successful authorization.
-    log_policy_event(
-        request_id=request_id,
-        application_id=identity.application_id,
-        model_id=request.model,
-        outcome="allow",
-        reason=decision.reason,
+    record_decision(
+        "allow",
+        decision.reason,
     )
 
     # Step 5: Forward to the approved model provider.

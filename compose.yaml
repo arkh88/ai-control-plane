@@ -17,7 +17,10 @@ services:
       OPA_URL: "http://opa:8181"
       AICP_API_KEY_SHA256: "${AICP_API_KEY_SHA256:?Set AICP_API_KEY_SHA256}"
       AICP_APP_ID: "${AICP_APP_ID:-demo-app}"
-
+      AICP_EVIDENCE_DB_PATH: "/tmp/aicp-evidence/evidence.sqlite3"
+    volumes:
+      - ./local-data/evidence:/tmp/aicp-evidence
+    
     security_opt:
       - no-new-privileges:true
 

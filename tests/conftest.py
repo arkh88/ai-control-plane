@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.auth import ApplicationIdentity, require_application
+from app.evidence import EvidenceStore, get_evidence_store
 from app.main import app as gateway_app
 from app.mock_provider import app as mock_app
 from app.model_registry import (
@@ -17,7 +18,7 @@ from app.provider_client import get_provider_client
 
 
 @pytest.fixture(autouse=True)
-def use_mock_provider():
+def use_mock_provider(tmp_path):
     """Keep gateway tests independent of Docker networking."""
 
     async def override_provider_client():
@@ -79,6 +80,10 @@ def use_mock_provider():
     gateway_app.dependency_overrides[get_policy_client] = override_policy_client
     gateway_app.dependency_overrides[require_application] = override_application
 
+    def override_evidence_store():
+        return EvidenceStore(str(tmp_path / "evidence.sqlite3"))
+
+    gateway_app.dependency_overrides[get_evidence_store] = override_evidence_store
     yield
 
     gateway_app.dependency_overrides.clear()
