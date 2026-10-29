@@ -18,6 +18,11 @@ services:
       AICP_API_KEY_SHA256: "${AICP_API_KEY_SHA256:?Set AICP_API_KEY_SHA256}"
       AICP_APP_ID: "${AICP_APP_ID:-demo-app}"
       AICP_EVIDENCE_DB_PATH: "/tmp/aicp-evidence/evidence.sqlite3"
+    # governance database — connectivity
+      AICP_GOVERNANCE_DB_HOST: "postgres"
+      AICP_GOVERNANCE_DB_USER: "aicp"
+      AICP_GOVERNANCE_DB_NAME: "aicp"
+      AICP_GOVERNANCE_DB_PASSWORD: "${AICP_POSTGRES_PASSWORD:?Set AICP_POSTGRES_PASSWORD}"
     volumes:
       - ./local-data/evidence:/tmp/aicp-evidence
     
@@ -92,4 +97,33 @@ services:
     security_opt:
       - no-new-privileges:true
 
-    restart: unless-stopped   
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-bookworm
+
+    environment:
+      POSTGRES_USER: "aicp"
+      POSTGRES_DB: "aicp"
+      POSTGRES_PASSWORD: "${AICP_POSTGRES_PASSWORD:?Set AICP_POSTGRES_PASSWORD}"
+
+    volumes:
+      - aicp-postgres-data:/var/lib/postgresql/data
+
+    expose:
+      - "5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aicp -d aicp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+    security_opt:
+      - no-new-privileges:true
+
+    restart: unless-stopped  
+
+volumes:
+  aicp-postgres-data:
