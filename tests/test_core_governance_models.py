@@ -60,6 +60,9 @@ def test_core_tables_and_foreign_key_exist(migrated_db):
         "applications",
         "api_credentials",
         "models",
+        "controls",
+        "policy_versions",
+        "policy_control_mappings",
     }
 
     columns = {column["name"] for column in inspector.get_columns("api_credentials")}

@@ -18,7 +18,10 @@ from app.governance_models import (
     ApiCredential,
     Application,
     Base,
+    GovernanceControl,
+    GovernancePolicyVersion,
     Model,
+    PolicyControlMapping,
 )
 
 # The ordinary pytest suite never connects to PostgreSQL.
@@ -31,7 +34,7 @@ if os.getenv("AICP_POSTGRES_TESTS") != "1":
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HEAD = "0002_core_governance_tables"
+HEAD = "0003_policy_control_mappings"
 
 
 @pytest.fixture(scope="module")
@@ -156,3 +159,50 @@ def test_postgres_demo_data_rolls_back(postgres_engine):
             )
             == 0
         )
+
+
+def test_postgres_policy_control_mapping_round_trip(
+    postgres_engine,
+):
+    """Test 5: PostgreSQL accepts a valid relational mapping."""
+
+    with postgres_engine.connect() as connection:
+        transaction = connection.begin()
+
+        try:
+            connection.execute(
+                insert(GovernanceControl).values(
+                    control_id="AICP-AC-001",
+                    objective="Application authorization",
+                )
+            )
+
+            connection.execute(
+                insert(GovernancePolicyVersion).values(
+                    policy_version="model-access/v1",
+                    policy_ref="aicp.authz.decision",
+                    description="Model access policy",
+                )
+            )
+
+            connection.execute(
+                insert(PolicyControlMapping).values(
+                    policy_version="model-access/v1",
+                    decision_reason="ALLOW",
+                    control_id="AICP-AC-001",
+                )
+            )
+
+            result = connection.execute(
+                select(
+                    PolicyControlMapping.decision_reason,
+                    PolicyControlMapping.control_id,
+                )
+            ).one()
+
+            assert result.decision_reason == "ALLOW"
+            assert result.control_id == "AICP-AC-001"
+
+        finally:
+            # No catalog test data remains in PostgreSQL.
+            transaction.rollback()

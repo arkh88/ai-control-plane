@@ -10,7 +10,7 @@ from alembic import command
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "0001_governance_baseline"
-HEAD = "0002_core_governance_tables"
+HEAD = "0003_policy_control_mappings"
 
 
 def migration_config(connection=None):
@@ -28,7 +28,8 @@ def test_baseline_is_current_migration_head():
     scripts = ScriptDirectory.from_config(migration_config())
 
     assert scripts.get_current_head() == HEAD
-    assert scripts.get_revision(HEAD).down_revision == BASELINE
+    assert scripts.get_revision(HEAD).down_revision == "0002_core_governance_tables"
+    assert scripts.get_revision("0002_core_governance_tables").down_revision == BASELINE
 
 
 def test_fresh_database_can_upgrade(tmp_path):
@@ -49,6 +50,9 @@ def test_fresh_database_can_upgrade(tmp_path):
             "applications",
             "api_credentials",
             "models",
+            "controls",
+            "policy_versions",
+            "policy_control_mappings",
         }
 
         with engine.connect() as connection:

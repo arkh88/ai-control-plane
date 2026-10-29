@@ -1,17 +1,17 @@
 **Last updated:** 2026-10-29
-**Current checkpoint:** Day 26 complete; Day 27 next.
+**Current checkpoint:** Day 27 complete; Day 28 next.
 
 | Metric | Value |
 | --- | --- |
-| Development sessions completed | 26 / 60 |
-| Remaining sessions | 34 |
-| Standard Python tests | 120 passing |
-| PostgreSQL integration tests | 4 passing in dedicated CI job |
+| Development sessions completed | 27 / 60 |
+| Remaining sessions | 33 |
+| Standard Python tests | 127 passing |
+| PostgreSQL integration tests | 5 passing |
 | Rego tests | 12 passing |
-| PostgreSQL migration head | 0002_core_governance_tables |
+| PostgreSQL migration head | 0003_policy_control_mappings |
 | Schema drift | No differences detected |
 | SQLite evidence | Still active, commit-before-inference |
-| Next task | Day 27: Controls, policy versions, and mappings |
+| Next task | Day 28: Decisions table and repository operations |
 
 ## Completed milestones
 

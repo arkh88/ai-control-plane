@@ -14,8 +14,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Empty on Day 24.
-# Day 25 will provide SQLAlchemy model metadata.
+# Current governance ORM metadata, including Day 27 mappings.
 target_metadata = Base.metadata
 
 
