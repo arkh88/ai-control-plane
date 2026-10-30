@@ -38,7 +38,7 @@ if os.getenv("AICP_POSTGRES_TESTS") != "1":
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HEAD = "0004_policy_control_mappings"
+HEAD = "0004_governance_decisions"
 
 
 @pytest.fixture(scope="module")
