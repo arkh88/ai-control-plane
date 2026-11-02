@@ -1,18 +1,18 @@
-**Last updated:** 2026-10-29
-**Current checkpoint:** Day 28 complete; Day 29 next.
+**Current checkpoint:** Day 29 complete; Day 30 next.
 
 | Metric | Value |
 | --- | --- |
-| Development sessions completed | 28 / 60 |
-| Remaining sessions | 32 |
-| Standard Python tests | 135 passing |
-| PostgreSQL integration tests | 6 passing |
+| Development sessions completed | 29 / 60 |
+| Remaining sessions | 31 |
+| Standard Python tests | 144 passing |
+| PostgreSQL integration tests | 8 passing |
 | Rego tests | 12 passing |
-| PostgreSQL migration head | 0004_governance_decisions |
-| Schema drift | No differences detected |
-| Active evidence store | SQLite |
-| PostgreSQL decision repository | Implemented and independently tested |
-| Next task | Day 29: Controlled evidence persistence cutover |
+| Alembic revision | 0004_governance_decisions |
+| Async PostgreSQL repository | Implemented and tested |
+| Async gateway integration | Implemented and tested |
+| Active local evidence backend | SQLite pending controlled cutover |
+| Architecture decision | ADR-009 approved |
+| Next task | Day 30: Controlled PostgreSQL cutover and outage verification |
 
 ## Completed milestones
 

@@ -1,17 +1,25 @@
 import logging
+import os
+from contextlib import asynccontextmanager
 from typing import Annotated
 from uuid import uuid4
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from app.auth import ApplicationIdentity, require_application
 from app.evidence import (
+    AsyncEvidenceWriter,
     EvidenceRecord,
     EvidenceStore,
     EvidenceStoreError,
     get_evidence_store,
+)
+from app.governance_db import (
+    create_async_governance_engine,
+    database_url_from_env,
 )
 from app.model_registry import MODEL_REGISTRY
 from app.policy_audit import PolicyOutcome, log_policy_event
@@ -28,10 +36,32 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Own one async database engine for this gateway worker."""
+
+    engine = None
+
+    if os.getenv("AICP_EVIDENCE_BACKEND") == "postgres":
+        engine = create_async_governance_engine(database_url_from_env())
+
+    application.state.governance_async_engine = engine
+
+    try:
+        yield
+    finally:
+        application.state.governance_async_engine = None
+
+        if engine is not None:
+            await engine.dispose()
+
+
 app = FastAPI(
     title="AI Control Plane",
     description=("Open-source AI governance and runtime security platform."),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -93,7 +123,7 @@ async def create_chat_completion(
         Depends(get_policy_client),
     ],
     evidence_store: Annotated[
-        EvidenceStore,
+        EvidenceStore | AsyncEvidenceWriter,
         Depends(get_evidence_store),
     ],
 ) -> ChatCompletionResponse:
@@ -102,7 +132,7 @@ async def create_chat_completion(
     request_id = http_request.state.request_id
     policy_version = "not_reported"
 
-    def record_decision(
+    async def record_decision(
         outcome: PolicyOutcome,
         reason: str,
     ) -> None:
@@ -118,7 +148,15 @@ async def create_chat_completion(
         )
 
         try:
-            evidence_store.write(record)
+            if isinstance(evidence_store, EvidenceStore):
+                # Compatibility for legacy SQLite regression tests.
+                await run_in_threadpool(
+                    evidence_store.write,
+                    record,
+                )
+            else:
+                # Production PostgreSQL path: native async I/O.
+                await evidence_store.write(record)
         except EvidenceStoreError as exc:
             raise HTTPException(
                 status_code=503,
@@ -142,7 +180,7 @@ async def create_chat_completion(
         )
 
     except PolicyClientError as exc:
-        record_decision(
+        await record_decision(
             "error",
             "POLICY_EVALUATION_ERROR",
         )
@@ -155,7 +193,7 @@ async def create_chat_completion(
     policy_version = decision.policy_version or "not_reported"
     # Step 2: Reject explicit OPA denials.
     if not decision.allow:
-        record_decision(
+        await record_decision(
             "deny",
             decision.reason,
         )
@@ -174,7 +212,7 @@ async def create_chat_completion(
     registration = MODEL_REGISTRY.get(request.model)
 
     if registration is None or registration.provider_id != "mock-provider":
-        record_decision(
+        await record_decision(
             "error",
             "ROUTE_UNAVAILABLE",
         )
@@ -185,7 +223,7 @@ async def create_chat_completion(
         )
 
     # Step 4: Log the successful authorization.
-    record_decision(
+    await record_decision(
         "allow",
         decision.reason,
     )

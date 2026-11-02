@@ -24,6 +24,7 @@
 | ADR-006 | Store reported policy versions and internal governance control references | Implemented / reported | Add artifact digests; tighten version contract |
 | ADR-007 | Restore missing original roadmap scope and target 60 sessions, not 63 | **Proposed working revision** | Review revised Days 23–60 and record approval |
 | ADR-008 | Use repository documentation and short weekly handoffs as project memory | **Proposed working method** | Connect GitHub and verify actual repository state |
+| ADR-009 | Use native async SQLAlchemy/Psycopg for runtime PostgreSQL evidence | Approved — implementation in Day 29 | Controlled cutover and load testing |
 
 ---
 
@@ -162,6 +163,68 @@
 | Days 36–42 | Canonical serialization, checkpoint trust, export integrity | Hash chains without trusted checkpoints do not prove immutability |
 | Days 43–49 | OPA management API and provider egress boundary | Limit policy modification and unauthorized outbound requests |
 | Days 57–60 | Release acceptance threshold and preview fallback | Do not claim production readiness solely because CI passes |
+
+
+## ADR-009 — Native Asynchronous PostgreSQL for Runtime Governance Evidence
+
+**Recorded:** 2026-10-30  
+**Status:** Approved — Day 29 implementation
+
+### Context
+
+The FastAPI gateway and its OPA and provider HTTPX clients already use asynchronous I/O.
+
+Day 28 introduced a synchronous SQLAlchemy repository for PostgreSQL decisions.
+
+Offloading synchronous database calls to a thread pool would preserve correct commit ordering, but native async database access is a more consistent choice for the intended I/O-heavy gateway architecture.
+
+### Decision
+
+Use SQLAlchemy `AsyncEngine` and Psycopg 3 for PostgreSQL runtime decision writes and reads.
+
+Retain synchronous SQLAlchemy access for Alembic, development utilities, and existing regression tests where appropriate.
+
+Create one asynchronous engine per FastAPI worker, manage it through the application lifespan, and use a bounded connection pool.
+
+Use explicit evidence-backend configuration. Missing or unsupported configuration fails closed.
+
+### Security requirements
+
+- Evidence writes are awaited before approved inference.
+- The database transaction must commit before the provider is called.
+- Database failures raise a controlled persistence exception.
+- Evidence failures prevent provider invocation.
+- No automatic fallback from PostgreSQL to SQLite is permitted.
+- Denials and policy-evaluation errors remain auditable when the evidence database is available.
+- Existing historical SQLite evidence is retained.
+
+### Alternatives considered
+
+**Synchronous SQLAlchemy in a thread pool:** Correct and simpler as a transitional design, but less aligned with the long-term asynchronous request path.
+
+**Background evidence queue:** Not selected for mandatory authorization evidence because the provider could be called before durable persistence is confirmed.
+
+**Separate asyncpg driver:** Not required because the existing Psycopg 3 dependency supports SQLAlchemy's asynchronous PostgreSQL dialect.
+
+### Consequences
+
+The persistence repository and gateway dependency will support native async writes.
+
+Regression tests will retain compatibility with the existing SQLite implementation.
+
+Production-scale readiness still requires load testing, bounded timeout behavior, capacity planning, monitoring, security controls, and a more resilient PostgreSQL deployment.
+
+### Roadmap impact
+
+The project remains targeted at 60 development sessions with a maximum two-hour daily budget.
+
+Day 29 focuses on the async PostgreSQL foundation and integration.
+
+Day 30 completes the controlled live cutover if necessary.
+
+The existing Day 32 review buffer absorbs any deferred data-classification or policy-integrity work.
+
+No planned security or release feature is intentionally removed.
 
 ## How to add a new entry
 

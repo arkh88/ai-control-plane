@@ -17,6 +17,7 @@ services:
       OPA_URL: "http://opa:8181"
       AICP_API_KEY_SHA256: "${AICP_API_KEY_SHA256:?Set AICP_API_KEY_SHA256}"
       AICP_APP_ID: "${AICP_APP_ID:-demo-app}"
+      AICP_EVIDENCE_BACKEND: "sqlite"
       AICP_EVIDENCE_DB_PATH: "/tmp/aicp-evidence/evidence.sqlite3"
     # governance database — connectivity
       AICP_GOVERNANCE_DB_HOST: "postgres"

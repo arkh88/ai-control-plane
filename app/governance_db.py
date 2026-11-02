@@ -7,6 +7,20 @@ import os
 
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+
+def create_async_governance_engine(url: URL) -> AsyncEngine:
+    """Create the async PostgreSQL engine for runtime evidence."""
+
+    return create_async_engine(
+        url,
+        pool_size=5,
+        max_overflow=5,
+        pool_timeout=3,
+        pool_pre_ping=True,
+    )
+
 
 REQUIRED_SETTINGS = (
     "AICP_GOVERNANCE_DB_HOST",

@@ -7,8 +7,10 @@ from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import uuid4
+
+from fastapi import HTTPException, Request
 
 from app.governance_controls import controls_for_reason
 
@@ -130,5 +132,42 @@ class EvidenceStore:
             raise EvidenceStoreError("Governance evidence persistence failed.") from exc
 
 
-def get_evidence_store() -> EvidenceStore:
-    return EvidenceStore(os.getenv("AICP_EVIDENCE_DB_PATH", ""))
+class AsyncEvidenceWriter(Protocol):
+    """Asynchronous evidence-writing contract."""
+
+    async def write(self, record: EvidenceRecord) -> None:
+        """Commit the record or raise an evidence error."""
+        ...
+
+
+def get_evidence_store(
+    request: Request,
+) -> EvidenceStore | AsyncEvidenceWriter:
+    """Select the configured evidence store without fallback."""
+
+    backend = os.getenv("AICP_EVIDENCE_BACKEND")
+
+    if backend == "sqlite":
+        return EvidenceStore(os.getenv("AICP_EVIDENCE_DB_PATH", ""))
+
+    if backend == "postgres":
+        from app.postgres_evidence import PostgresEvidenceStore
+
+        engine = getattr(
+            request.app.state,
+            "governance_async_engine",
+            None,
+        )
+
+        if engine is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Governance evidence unavailable.",
+            )
+
+        return PostgresEvidenceStore(engine)
+
+    raise HTTPException(
+        status_code=503,
+        detail="Governance evidence unavailable.",
+    )

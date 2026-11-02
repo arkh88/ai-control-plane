@@ -1,19 +1,25 @@
 """Day 26: PostgreSQL-specific migration integration tests."""
 
+import asyncio
 import os
 from pathlib import Path
 from uuid import uuid4
 
+import httpx
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, insert, inspect, select, text
 
 from alembic import command
+from app.async_decision_repository import AsyncDecisionRepository
 from app.decision_repository import PostgresDecisionRepository
-from app.evidence import EvidenceRecord
+from app.evidence import EvidenceRecord, get_evidence_store
 from app.governance_db import (
+    create_async_governance_engine,
     create_governance_engine,
     database_url_from_env,
 )
@@ -27,6 +33,8 @@ from app.governance_models import (
     Model,
     PolicyControlMapping,
 )
+from app.main import app
+from app.provider_client import get_provider_client
 
 # The ordinary pytest suite never connects to PostgreSQL.
 # This module runs only when explicitly enabled in CI.
@@ -253,3 +261,170 @@ def test_postgres_decision_commit_and_readback(
                     GovernanceDecision.request_id == record.request_id
                 )
             )
+
+
+def test_async_postgres_decision_round_trip(postgres_engine):
+    """Test 7: native async PostgreSQL commit and readback."""
+
+    record = EvidenceRecord(
+        request_id=str(uuid4()),
+        application_id="test-app",
+        model_id="local-small",
+        outcome="allow",
+        reason="ALLOW",
+        policy_version="model-access/v1",
+    )
+
+    async def scenario():
+        engine = create_async_governance_engine(database_url_from_env())
+        repository = AsyncDecisionRepository(engine)
+
+        try:
+            await repository.write(record)
+
+            saved = await repository.get_by_request_id(record.request_id)
+
+            assert saved is not None
+            assert saved.evidence_id == record.evidence_id
+            assert saved.outcome == "allow"
+            assert saved.control_ids == (
+                "AICP-AC-001",
+                "AICP-EV-001",
+            )
+
+        finally:
+            try:
+                async with engine.begin() as connection:
+                    await connection.execute(
+                        delete(GovernanceDecision).where(
+                            GovernanceDecision.request_id == record.request_id
+                        )
+                    )
+            finally:
+                await engine.dispose()
+
+    asyncio.run(scenario())
+
+
+def test_async_gateway_commits_before_provider(
+    postgres_engine,
+    monkeypatch,
+):
+    """Test 8: provider sees committed PostgreSQL evidence."""
+
+    provider_calls = []
+    provider_app = FastAPI()
+    saved_request_id = None
+
+    @provider_app.post("/v1/chat/completions")
+    async def mocked_provider():
+        engine = app.state.governance_async_engine
+
+        # This uses a separate PostgreSQL connection.
+        async with engine.connect() as connection:
+            result = await connection.execute(
+                select(GovernanceDecision.request_id).where(
+                    GovernanceDecision.application_id == "test-app",
+                    GovernanceDecision.model_id == "local-small",
+                    GovernanceDecision.outcome == "allow",
+                )
+            )
+            request_ids = result.scalars().all()
+
+        assert len(request_ids) == 1
+        provider_calls.append(request_ids[0])
+
+        # The upstream provider is called only after evidence
+        # is readable from a separate connection.
+        return {
+            "id": "chatcmpl-async-postgres",
+            "object": "chat.completion",
+            "created": 1700000000,
+            "model": "local-small",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Approved",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": None,
+        }
+
+    async def override_provider():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=provider_app),
+            base_url="http://mock-provider:8001",
+            trust_env=False,
+        ) as provider:
+            yield provider
+
+    # Use actual backend selection instead of the
+    # shared fixture's SQLite evidence override.
+    monkeypatch.delitem(
+        app.dependency_overrides,
+        get_evidence_store,
+        raising=False,
+    )
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_provider_client,
+        override_provider,
+    )
+
+    monkeypatch.setenv(
+        "AICP_EVIDENCE_BACKEND",
+        "postgres",
+    )
+
+    try:
+        # The context manager starts the FastAPI lifespan.
+        with TestClient(app) as gateway:
+            response = gateway.post(
+                "/v1/chat/completions",
+                json={
+                    "model": "local-small",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Async PostgreSQL test",
+                        }
+                    ],
+                    "stream": False,
+                },
+            )
+
+            saved_request_id = response.headers.get("X-Request-ID")
+
+            assert response.status_code == 200
+            assert saved_request_id is not None
+            assert provider_calls == [saved_request_id]
+
+        # Verify persistence using the separate
+        # synchronous CI engine.
+        with postgres_engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(GovernanceDecision.__table__).where(
+                        GovernanceDecision.request_id == saved_request_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+
+        assert row["outcome"] == "allow"
+        assert row["reason"] == "ALLOW"
+
+    finally:
+        if saved_request_id is not None:
+            with postgres_engine.begin() as connection:
+                connection.execute(
+                    delete(GovernanceDecision).where(
+                        GovernanceDecision.request_id == saved_request_id
+                    )
+                )
