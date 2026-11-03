@@ -34,6 +34,7 @@ from app.governance_models import (
     PolicyControlMapping,
 )
 from app.main import app
+from app.postgres_evidence import PostgresEvidenceStore
 from app.provider_client import get_provider_client
 
 # The ordinary pytest suite never connects to PostgreSQL.
@@ -428,3 +429,222 @@ def test_async_gateway_commits_before_provider(
                         GovernanceDecision.request_id == saved_request_id
                     )
                 )
+
+
+def test_async_gateway_postgres_denial_is_persisted(
+    postgres_engine,
+    monkeypatch,
+):
+    """Test 9: denial persists in PostgreSQL without inference."""
+
+    monkeypatch.setenv(
+        "AICP_EVIDENCE_BACKEND",
+        "postgres",
+    )
+
+    # Bypass the shared SQLite fixture so the real
+    # PostgreSQL evidence dependency is exercised.
+    monkeypatch.delitem(
+        app.dependency_overrides,
+        get_evidence_store,
+        raising=False,
+    )
+
+    request_id = None
+
+    try:
+        with TestClient(app) as gateway:
+            response = gateway.post(
+                "/v1/chat/completions",
+                json={
+                    "model": "restricted-small",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Day 30 denial test",
+                        }
+                    ],
+                    "stream": False,
+                },
+            )
+
+        request_id = response.headers["X-Request-ID"]
+
+        assert response.status_code == 403
+
+        with postgres_engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(GovernanceDecision.__table__).where(
+                        GovernanceDecision.request_id == request_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+
+        assert row["application_id"] == "test-app"
+        assert row["model_id"] == "restricted-small"
+        assert row["outcome"] == "deny"
+        assert row["reason"] == "MODEL_NOT_ALLOWED"
+        assert row["control_ids"] == [
+            "AICP-AC-001",
+            "AICP-EV-001",
+        ]
+
+    finally:
+        if request_id is not None:
+            with postgres_engine.begin() as connection:
+                connection.execute(
+                    delete(GovernanceDecision).where(
+                        GovernanceDecision.request_id == request_id
+                    )
+                )
+
+
+def test_async_gateway_postgres_outage_and_recovery(
+    postgres_engine,
+    monkeypatch,
+):
+    """Test 10: broken PostgreSQL blocks inference; recovery works."""
+
+    monkeypatch.setenv(
+        "AICP_EVIDENCE_BACKEND",
+        "postgres",
+    )
+
+    # CI runs the real test database on port 5432.
+    # Port 1 is deliberately unavailable.
+    broken_url = database_url_from_env().set(port=1)
+    broken_engine = create_async_governance_engine(broken_url)
+
+    provider_calls = []
+    recovered_request_id = None
+
+    def provider_handler(request):
+        provider_calls.append(request)
+
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-day30",
+                "object": "chat.completion",
+                "created": 1700000000,
+                "model": "local-small",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Approved after recovery",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": None,
+            },
+        )
+
+    async def override_provider():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(provider_handler),
+            base_url="http://mock-provider:8001",
+            trust_env=False,
+        ) as provider:
+            yield provider
+
+    def unavailable_postgres():
+        return PostgresEvidenceStore(broken_engine)
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_provider_client,
+        override_provider,
+    )
+
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        get_evidence_store,
+        unavailable_postgres,
+    )
+
+    payload = {
+        "model": "local-small",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Day 30 outage test",
+            }
+        ],
+        "stream": False,
+    }
+
+    try:
+        with TestClient(app) as gateway:
+            # Phase 1: PostgreSQL evidence is unavailable.
+            failed = gateway.post(
+                "/v1/chat/completions",
+                json=payload,
+            )
+
+            failed_request_id = failed.headers["X-Request-ID"]
+
+            assert failed.status_code == 503
+            assert failed.json()["detail"] == ("Governance evidence unavailable.")
+            assert provider_calls == []
+
+            # Confirm that the failed attempt did not
+            # secretly write a decision to real PostgreSQL.
+            with postgres_engine.connect() as connection:
+                missing_row = connection.execute(
+                    select(GovernanceDecision.evidence_id).where(
+                        GovernanceDecision.request_id == failed_request_id
+                    )
+                ).scalar_one_or_none()
+
+            assert missing_row is None
+
+            # Phase 2: Restore the normal PostgreSQL
+            # evidence dependency within the same gateway.
+            monkeypatch.delitem(
+                app.dependency_overrides,
+                get_evidence_store,
+                raising=False,
+            )
+
+            recovered = gateway.post(
+                "/v1/chat/completions",
+                json=payload,
+            )
+
+            recovered_request_id = recovered.headers["X-Request-ID"]
+
+            assert recovered.status_code == 200
+            assert len(provider_calls) == 1
+
+        # A separate connection must see the committed
+        # authorization record after provider invocation.
+        with postgres_engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(GovernanceDecision.__table__).where(
+                        GovernanceDecision.request_id == recovered_request_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+
+        assert row["outcome"] == "allow"
+        assert row["reason"] == "ALLOW"
+
+    finally:
+        if recovered_request_id is not None:
+            with postgres_engine.begin() as connection:
+                connection.execute(
+                    delete(GovernanceDecision).where(
+                        GovernanceDecision.request_id == recovered_request_id
+                    )
+                )
+
+        asyncio.run(broken_engine.dispose())

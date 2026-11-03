@@ -1,19 +1,22 @@
-**Current checkpoint:** Day 29 complete; Day 30 next.
+**Current checkpoint:** Day 30 complete; Day 31 next.
 
 | Metric | Value |
 | --- | --- |
-| Development sessions completed | 29 / 60 |
-| Remaining sessions | 31 |
+| Development sessions completed | 30 / 60 |
+| Remaining sessions | 30 |
 | Standard Python tests | 144 passing |
-| PostgreSQL integration tests | 8 passing |
+| PostgreSQL integration tests | 10 passing |
 | Rego tests | 12 passing |
 | Alembic revision | 0004_governance_decisions |
-| Async PostgreSQL repository | Implemented and tested |
-| Async gateway integration | Implemented and tested |
-| Active local evidence backend | SQLite pending controlled cutover |
-| Architecture decision | ADR-009 approved |
-| Next task | Day 30: Controlled PostgreSQL cutover and outage verification |
-
+| Active runtime evidence backend | Native async PostgreSQL |
+| Historical SQLite evidence | Preserved and backed up |
+| Allow request | HTTP 200; committed PostgreSQL evidence |
+| Denied request | HTTP 403; committed PostgreSQL evidence |
+| PostgreSQL outage | HTTP 503; zero provider calls |
+| PostgreSQL recovery | HTTP 200; evidence committed |
+| Automatic SQLite fallback | Disabled |
+| Architecture decisions | ADR-009 and ADR-010 |
+| Next session | Day 31: Trusted data-classification routing |
 ## Completed milestones
 
 | Actual days | Work delivered | Verification reported |

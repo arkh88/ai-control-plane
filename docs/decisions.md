@@ -25,7 +25,7 @@
 | ADR-007 | Restore missing original roadmap scope and target 60 sessions, not 63 | **Proposed working revision** | Review revised Days 23–60 and record approval |
 | ADR-008 | Use repository documentation and short weekly handoffs as project memory | **Proposed working method** | Connect GitHub and verify actual repository state |
 | ADR-009 | Use native async SQLAlchemy/Psycopg for runtime PostgreSQL evidence | Approved — implementation in Day 29 | Controlled cutover and load testing |
-
+| ADR-010 | Use PostgreSQL as the authoritative store for new runtime evidence | Implemented after Day 30 verification | Preserve historical SQLite; review any future migration separately |
 ---
 
 ## ADR-001 — Python-first, containerized development MVP
@@ -246,3 +246,44 @@ No planned security or release feature is intentionally removed.
 
 **Follow-up:** Required tests, migrations, documentation, or next milestones.
 ```
+## ADR-010 — PostgreSQL Becomes Authoritative for New Governance Evidence
+
+**Recorded:** 2026-11-02  
+**Status:** Implemented after Day 30 acceptance checks
+
+### Context
+
+Day 29 delivered native asynchronous SQLAlchemy/Psycopg persistence, with PostgreSQL integration tests, while preserving SQLite as the active local runtime store.
+
+The gateway now requires a controlled transition to PostgreSQL without losing historical evidence or weakening the commit-before-inference guarantee.
+
+### Decision
+
+Select `AICP_EVIDENCE_BACKEND=postgres` in Docker Compose for all new runtime authorization evidence.
+
+Retain the historical SQLite database and a verified backup. Mount the legacy SQLite evidence directory read-only inside the gateway container.
+
+Do not automatically migrate, discard, overwrite, relabel or merge historical SQLite records as part of this cutover.
+
+### Required security behavior
+
+- Approved inference requires a successful PostgreSQL transaction commit.
+- Denials are persisted to PostgreSQL when the database is available.
+- PostgreSQL unavailability returns HTTP 503.
+- A PostgreSQL outage results in zero provider calls.
+- There is no automatic SQLite fallback.
+- Service recovery restores normal evidence-backed inference without discarding records.
+
+### Verification
+
+Day 30 acceptance requires real Docker requests for allow, deny, stopped PostgreSQL and recovery, plus automated PostgreSQL integration tests and green CI.
+
+### Consequences and limitations
+
+PostgreSQL is authoritative for new decisions; historical SQLite evidence remains separately retained.
+
+This is a controlled local-development cutover, not a claim of production high availability or tamper-evident evidence.
+
+The gateway liveness endpoint does not prove database readiness.
+
+The historical-data migration policy, database resilience, alerting, retention, export integrity and administrator access controls remain separate future work.
