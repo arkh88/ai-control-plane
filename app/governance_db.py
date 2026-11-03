@@ -21,7 +21,6 @@ def create_async_governance_engine(url: URL) -> AsyncEngine:
         pool_pre_ping=True,
     )
 
-
 REQUIRED_SETTINGS = (
     "AICP_GOVERNANCE_DB_HOST",
     "AICP_GOVERNANCE_DB_USER",
