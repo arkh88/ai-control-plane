@@ -4,7 +4,9 @@
 
 **Time constraint:** Up to **2 hours per development session**. The original schedule was dated October 22–December 23, 2026, and contained **63 numbered days**, despite being described as a 60-day plan. The revised release plan targets **60 development sessions**. Calendar dates are planning references, not a requirement to slow down or speed up.
 
-**Current checkpoint (October 29, 2026):** Day 22 completed and reported green; Day 23 is next. See [`progress.md`](progress.md) for the latest status.
+**Current checkpoint (November 6, 2026):** Day 30 completed. See [`progress.md`](progress.md) for the latest status.
+
+> **Superseded for sessions 31–60:** the active schedule is now [`production-30-day-plan.md`](production-30-day-plan.md) (ADR-011). The revised Days 31–60 below are retained for comparison only.
 
 ## Roadmap governance
 

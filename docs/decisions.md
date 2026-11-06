@@ -1,7 +1,7 @@
 # Architecture Decision Log — AI Governance & Security Control Plane
 
-**Last updated:** 2026-10-29  
-**Project status:** Day 22 complete (developer-reported), revised Day 23 next.  
+**Last updated:** 2026-11-06  
+**Project status:** Day 30 complete; production plan session P1 (Day 31) next.  
 **Purpose:** Preserve *why* the architecture and roadmap changed so future conversations can start from repository facts rather than reconstructing historical chat context.
 
 ## Conventions
@@ -26,6 +26,7 @@
 | ADR-008 | Use repository documentation and short weekly handoffs as project memory | **Proposed working method** | Connect GitHub and verify actual repository state |
 | ADR-009 | Use native async SQLAlchemy/Psycopg for runtime PostgreSQL evidence | Approved — implementation in Day 29 | Controlled cutover and load testing |
 | ADR-010 | Use PostgreSQL as the authoritative store for new runtime evidence | Implemented after Day 30 verification | Preserve historical SQLite; review any future migration separately |
+| ADR-011 | Re-scope sessions 31–60 to a production-ready single-organization MVP | Approved — active plan | Follow [`production-30-day-plan.md`](production-30-day-plan.md); classification deferred to v0.2 |
 ---
 
 ## ADR-001 — Python-first, containerized development MVP
@@ -287,3 +288,48 @@ This is a controlled local-development cutover, not a claim of production high a
 The gateway liveness endpoint does not prove database readiness.
 
 The historical-data migration policy, database resilience, alerting, retention, export integrity and administrator access controls remain separate future work.
+
+---
+
+## ADR-011 — Re-scope Sessions 31–60 to a Production-Ready Single-Organization MVP
+
+**Recorded:** 2026-11-06
+**Status:** Approved — active working schedule
+
+### Context
+
+After the Day 30 PostgreSQL cutover, two independent code reviews rated the
+project as a disciplined, security-first MVP (≈7.5/10 code quality) but far from
+production-ready (≈4/10). Key gaps: the Compose stack does not run migrations,
+governance configuration is duplicated across Rego, Python and the database,
+authentication supports a single environment-configured key, `policy_version`
+is optional, inference outcomes are not recorded, HTTP clients are built per
+request, and there is no readiness check, backup, TLS or monitoring.
+
+The remaining revised roadmap (Days 31–60) targets a lab-grade v0.1 and does not
+schedule several of these items.
+
+### Decision
+
+Replace the revised Days 31–60 with [`production-30-day-plan.md`](production-30-day-plan.md)
+(sessions P1–P30). The target is a single-organization, single-VM, TLS-fronted
+deployment with database-backed credentials, a verified policy bundle, one real
+provider, append-only hash-chained evidence, monitoring and tested backups.
+
+### Scope changes
+
+- **Deferred to v0.2:** trusted data-classification routing (CTRL-002), streaming,
+  SSO, distributed rate limiting, Kubernetes.
+- **Brought forward:** threat model v1 (P7), full-stack Compose acceptance test in CI (P3).
+- **Added:** DB-backed credential lifecycle, readiness endpoint, request limits,
+  database role separation, metrics, TLS, image hardening, backup/restore, load test.
+
+### Consequences
+
+- Original MVP scope item "classification-aware routing" is not delivered in v0.1;
+  the release notes and known-limitations list must say so.
+- Historical SQLite evidence remains preserved per ADR-010; it is archived before
+  its runtime mount is removed (P2).
+- The 60-session commitment is unchanged; the original 63-day baseline and revised
+  schedule remain in `roadmap-60-days.md` for comparison.
+

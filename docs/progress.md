@@ -1,4 +1,4 @@
-**Current checkpoint:** Day 30 complete; Day 31 next.
+**Current checkpoint:** Day 30 complete; production plan session P1 (Day 31) next — see [`production-30-day-plan.md`](production-30-day-plan.md).
 
 | Metric | Value |
 | --- | --- |
@@ -16,7 +16,7 @@
 | PostgreSQL recovery | HTTP 200; evidence committed |
 | Automatic SQLite fallback | Disabled |
 | Architecture decisions | ADR-009 and ADR-010 |
-| Next session | Day 31: Trusted data-classification routing |
+| Next session | P1 (Day 31): repository safeguards and dependency cleanup — classification deferred to v0.2 (ADR-011) |
 ## Completed milestones
 
 | Actual days | Work delivered | Verification reported |
